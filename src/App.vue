@@ -10,10 +10,15 @@ const store = useSkyStore()
 store.init()
 
 const drawer = ref('')            // '' | 'hangar' | 'trophy'
-const raceResult = ref(null)      // 竞速结果，显式传给 RaceAnim
+// 当前观看的比赛：{ race, mode: 'live' | 'replay' }，三者（动画/实时排名/结算卡）共用同一份记录
+const viewing = ref(null)
 
-function onRace(r) { raceResult.value = r }
-function goBack() { raceResult.value = null }
+// live：开赛或中断续看；replay：历史回放（绝不再次结算）
+function openRace(race, mode = 'live') { viewing.value = { race, mode } }
+async function goBack() {
+  viewing.value = null
+  await store.refresh()
+}
 function openHangar() { drawer.value = drawer.value === 'hangar' ? '' : 'hangar' }
 function openTrophy() { drawer.value = drawer.value === 'trophy' ? '' : 'trophy' }
 </script>
@@ -37,10 +42,10 @@ function openTrophy() { drawer.value = drawer.value === 'trophy' ? '' : 'trophy'
     </header>
 
     <!-- 主游戏场景：云海浮岛航线图 -->
-    <MainScene class="scene" @race="onRace" />
+    <MainScene class="scene" @view="openRace" />
 
-    <!-- 竞速镜头 -->
-    <RaceAnim v-if="raceResult" :result="raceResult" @back="goBack" />
+    <!-- 竞速镜头：live（开赛/续看）或 replay（历史回放） -->
+    <RaceAnim v-if="viewing" :race="viewing.race" :mode="viewing.mode" @back="goBack" />
 
     <!-- 右下操作钮 -->
     <div class="fab-col">
@@ -53,7 +58,7 @@ function openTrophy() { drawer.value = drawer.value === 'trophy' ? '' : 'trophy'
       <div v-if="drawer === 'hangar'"><HangarDrawer @close="drawer = ''" /></div>
     </transition>
     <transition name="slide">
-      <div v-if="drawer === 'trophy'"><TrophyDrawer @close="drawer = ''" /></div>
+      <div v-if="drawer === 'trophy'"><TrophyDrawer @close="drawer = ''" @replay="r => openRace(r, 'replay')" /></div>
     </transition>
   </div>
 </template>

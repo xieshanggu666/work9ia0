@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useSkyStore } from '@/store/sky'
 const store = useSkyStore()
-const emit = defineEmits(['race'])
+const emit = defineEmits(['view'])
 
 const wIco = { '晴': '🌤️', '风': '🌬️', '雨': '🌧️', '雾': '🌫️', '雷暴': '⛈️' }
 // 浮岛在航线图上的坐标（左下→右上一条上升的航线）
@@ -16,22 +16,35 @@ const done = computed(() => circuits.value.filter(c => c.finished).length)
 const total = computed(() => store.state?.seasonTotal || circuits.value.length || 6)
 const nextId = computed(() => circuits.value.find(c => !c.finished)?.id ?? null)
 function isOpen(c) { return !c.finished && c.id === nextId.value }
+// 中断续看：未结算的比赛记录（开赛瞬间生成，奖励尚未落账）
+const active = computed(() => store.activeRace)
+const activeCid = computed(() => active.value?.record?.circuit?.id ?? null)
 
 const starting = ref(false)
-// 玩家游艇巡航位置：锁定在当前待赛站；全部完赛后停靠终点岛
+// 玩家游艇巡航位置：比赛中停靠在参赛岛；否则锁定当前待赛站；全部完赛后停靠终点岛
 const playerPos = computed(() => {
-  const idx = Math.min(nextId.value == null ? total.value - 1 : circuits.value.findIndex(c => c.id === nextId.value), total.value - 1)
-  return spots[Math.max(0, idx)]
+  let idx
+  if (activeCid.value != null) idx = circuits.value.findIndex(c => c.id === activeCid.value)
+  else idx = nextId.value == null ? total.value - 1 : circuits.value.findIndex(c => c.id === nextId.value)
+  return spots[Math.max(0, Math.min(idx, total.value - 1))]
 })
 function fmt(c) { return '第 ' + c.rank + ' 名' }
 async function go(c) {
-  if (starting.value || !isOpen(c)) return
+  if (starting.value) return
+  // 该赛站存在未结算的比赛 → 直接续看同一份记录
+  if (active.value && activeCid.value === c.id) { emit('view', active.value, 'live'); return }
+  if (!isOpen(c)) return
   starting.value = true
-  const r = await store.race(c.id)
-  if (r.ok) { await store.refresh(); emit('race', r) }
-  else store.tip(r.msg || '当前还不能参加该站')
+  // 开赛：服务器在这一刻生成完整比赛记录（分段过程、事件、奖励全部确定）
+  const r = await store.startRace(c.id)
+  if (r.ok) {
+    if (r.resumed) store.tip('继续观看未结束的比赛')
+    emit('view', r.race, 'live')
+  } else store.tip(r.msg || '当前还不能参加该站')
   starting.value = false
 }
+// 顶部「中断续看」浮条
+function resume() { if (active.value) emit('view', active.value, 'live') }
 </script>
 
 <template>
@@ -111,12 +124,21 @@ async function go(c) {
 
       <!-- HTML 开赛按钮层：叠加在浮岛上方，仅当前待赛站可点击，其余赛站锁定 -->
       <button v-for="(c, i) in circuits" :key="'b' + c.id" v-show="!c.finished"
-        class="start-btn" :class="{ locked: !isOpen(c) }"
-        :disabled="starting || !isOpen(c)"
-        :title="isOpen(c) ? '' : `请先完成前面的第 ${i} 站`"
+        class="start-btn" :class="{ locked: !(isOpen(c) || activeCid === c.id) }"
+        :disabled="starting || !(isOpen(c) || activeCid === c.id)"
+        :title="isOpen(c) || activeCid === c.id ? '' : `请先完成前面的第 ${i} 站`"
         :style="{ left: (spots[i].x / 1060 * 100) + '%', top: ((spots[i].y - 8) / 600 * 100) + '%' }"
-        @click="go(c)">{{ isOpen(c) ? '🚀 开赛' : '🔒 未解锁' }}</button>
+        @click="go(c)">{{ activeCid === c.id ? '▶ 续看' : isOpen(c) ? '🚀 开赛' : '🔒 未解锁' }}</button>
     </div>
+
+    <!-- 中断续看浮条：存在未结算比赛时出现，从上次观赛进度继续 -->
+    <transition name="pop">
+      <button v-if="active" class="resume-hud" @click="resume">
+        <span class="rh-dot"></span>
+        「{{ active.record.circuit.name }}」比赛进行中 · 点击中断续看
+        <b>▶</b>
+      </button>
+    </transition>
 
     <!-- 赛季进度浮条 -->
     <div class="progress-hud">

@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS sponsors (
 CREATE TABLE IF NOT EXISTS race_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   circuit_id INTEGER,
+  race_id INTEGER,             -- 对应 races.id，一场比赛一条流水
   season INTEGER,
   rank INTEGER,
   pts INTEGER,
@@ -81,7 +82,28 @@ CREATE TABLE IF NOT EXISTS race_log (
   note TEXT,
   ts TEXT
 );
+-- 比赛记录：动画 / 实时排名 / 最终奖励共用的唯一事实来源
+-- status=running 未完赛（可中断续看）；settled=1 已结算（奖励只发一次，可历史回放）
+CREATE TABLE IF NOT EXISTS races (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  circuit_id INTEGER NOT NULL,
+  season INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'running',  -- running | settled
+  settled INTEGER NOT NULL DEFAULT 0,
+  rank INTEGER,
+  pts INTEGER DEFAULT 0,
+  money REAL DEFAULT 0,
+  wear INTEGER DEFAULT 0,
+  rep_gain INTEGER DEFAULT 0,
+  record TEXT NOT NULL,                    -- 分段过程、快照因素、事件与奖励（JSON）
+  watch_el REAL NOT NULL DEFAULT 0,        -- 最近观赛进度（秒），中断续看
+  created_at TEXT,
+  settled_at TEXT
+);
 `)
+
+// 老库兼容：为 race_log 增补 race_id 列（已存在则忽略）
+try { db.exec('ALTER TABLE race_log ADD COLUMN race_id INTEGER') } catch (e) {}
 
 export function run(sql, ...p) { return db.prepare(sql).run(...p) }
 export function all(sql, ...p) { return db.prepare(sql).all(...p) }

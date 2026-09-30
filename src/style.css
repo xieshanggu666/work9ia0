@@ -124,21 +124,61 @@ input:focus { border-color: var(--gold); }
   background:
     radial-gradient(700px 360px at 70% 8%, rgba(62,132,232,.4), transparent 60%),
     linear-gradient(180deg, #14173a 0%, #25275e 70%, #171a3f 100%);
+  overflow-y: auto;
 }
+.race-back {
+  position: absolute; left: 18px; top: 16px; z-index: 3; padding: 7px 14px; border-radius: 20px;
+  background: rgba(255,255,255,.08); border: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 700;
+}
+.race-back:hover { color: var(--gold); border-color: var(--gold); }
+.race-mode {
+  position: absolute; right: 22px; top: 18px; z-index: 3; padding: 6px 13px; border-radius: 20px;
+  font-size: 11px; font-weight: 800; letter-spacing: .5px;
+}
+.race-mode.live { background: rgba(255, 95, 110, .18); color: #ff8fa0; border: 1px solid rgba(255, 95, 110, .45); }
+.race-mode.rep { background: rgba(126, 203, 255, .16); color: var(--sky); border: 1px solid rgba(126, 203, 255, .4); }
 .race-title { text-align: center; }
 .race-title h3 { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: 1px; color: #fff; }
 .race-title .sub2 { margin-top: 6px; color: var(--muted); font-size: 13px; }
+
+/* 影响因素条（天气/改装/人员状态快照） */
+.factor-strip {
+  margin-top: 14px; padding: 9px 12px; border-radius: 13px; cursor: pointer;
+  background: rgba(255,255,255,.06); border: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; gap: 7px; align-items: center;
+}
+.fx-chip {
+  font-size: 11.5px; font-weight: 700; padding: 4px 11px; border-radius: 20px;
+  background: rgba(255,255,255,.07); border: 1px solid transparent; color: var(--muted); white-space: nowrap;
+}
+.fx-chip em { font-style: normal; color: var(--mint); margin-left: 3px; }
+.fx-chip.on { color: var(--gold); background: rgba(255,215,106,.14); border-color: rgba(255,215,106,.5); }
+.fx-more { margin-left: auto; font-size: 11px; color: var(--muted); }
+.factor-detail {
+  margin-top: 9px; padding: 12px 14px; border-radius: 13px; display: flex; flex-direction: column; gap: 9px;
+  background: rgba(16,18,50,.66); border: 1px solid var(--line);
+}
+.fd-h { font-size: 12px; font-weight: 800; color: var(--gold); margin-bottom: 5px; }
+.fd-block { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
 .track {
-  position: relative; margin-top: 30px; background:
+  position: relative; margin-top: 20px; background:
     radial-gradient(500px 120px at 50% 100%, rgba(255,255,255,.25), transparent 70%);
-  border: 1px solid var(--line); border-radius: 18px; overflow: hidden; height: 60%;
+  border: 1px solid var(--line); border-radius: 18px; overflow: hidden; height: 52%; min-height: 320px;
+}
+.seg-divider {
+  position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed rgba(255,215,106,.28);
+}
+.seg-label {
+  position: absolute; top: 7px; transform: translateX(-50%); font-size: 10.5px; font-weight: 700;
+  color: rgba(255,215,106,.75); letter-spacing: 1px; pointer-events: none;
 }
 .startline { position: absolute; left: 6%; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,.2); }
 .startline::after { content: '起点'; position: absolute; top: 6px; left: -14px; font-size: 10px; color: var(--muted); }
 .finishline { position: absolute; right: 6%; top: 0; bottom: 0; width: 2px;
   background: repeating-linear-gradient(180deg, var(--gold) 0 8px, transparent 8px 16px); }
 .finishline::after { content: '冲线'; position: absolute; top: 6px; right: -14px; font-size: 10px; color: var(--gold); }
-.lane { position: absolute; left: 0; right: 0; height: 15.5%; border-bottom: 1px dashed rgba(255,255,255,.06); display: flex; align-items: center; }
+.lane { position: absolute; left: 0; right: 0; height: 14.6%; border-bottom: 1px dashed rgba(255,255,255,.06); display: flex; align-items: center; }
 .lane-ratio { position: absolute; inset: 0; }
 .ship {
   position: absolute; top: 50%; transform: translateY(-50%); padding: 6px 12px 6px 30px; border-radius: 30px;
@@ -164,7 +204,33 @@ input:focus { border-color: var(--gold); }
 .board-p { background: rgba(255,215,106,.16); color: var(--gold); font-weight: 700; }
 .board-p .bpos { background: var(--gold); color: #241d09; }
 .you { margin-left: auto; font-size: 10px; padding: 1px 7px; border-radius: 10px; background: var(--gold); color: #241d09; font-weight: 800; }
+.fin { margin-left: auto; font-size: 12px; }
 
+/* 分段事件横幅 */
+.race-event {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%); z-index: 4;
+  padding: 9px 18px; border-radius: 24px; font-size: 13px; font-weight: 800; white-space: nowrap;
+  background: rgba(20,22,58,.92); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+.race-event.overtake { color: var(--gold); border-color: rgba(255,215,106,.6); }
+.race-event.flavor { color: var(--sky); border-color: rgba(126,203,255,.5); }
+
+/* 操作条 */
+.race-actions { display: flex; justify-content: center; margin-top: 16px; }
+
+/* 中断续看浮条 */
+.resume-hud {
+  position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6;
+  display: flex; align-items: center; gap: 10px; padding: 11px 20px; border-radius: 30px;
+  background: linear-gradient(135deg, rgba(255,184,92,.95), rgba(255,215,106,.95)); color: #2a2108;
+  font-weight: 800; font-size: 13.5px; border: none; box-shadow: 0 12px 34px rgba(0,0,0,.4), 0 0 0 2px rgba(255,255,255,.25);
+  animation: bob 2.6s ease-in-out infinite;
+}
+.resume-hud b { font-size: 12px; }
+.rh-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff5066; box-shadow: 0 0 0 0 rgba(255,80,102,.7); animation: rhBlink 1.3s infinite; }
+@keyframes rhBlink { 70% { box-shadow: 0 0 0 8px rgba(255,80,102,0); } 100% { box-shadow: 0 0 0 0 rgba(255,80,102,0); } }
+
+/* 结算 */
 .settle {
   position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
   width: 320px; padding: 28px; border-radius: 22px; text-align: center;
@@ -176,6 +242,14 @@ input:focus { border-color: var(--gold); }
 .s-row { width: 78%; display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
 .s-row b { color: var(--txt); }
 .s-btn { width: 78%; margin-top: 8px; }
+.s-tag { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+.s-note { width: 86%; font-size: 11px; color: var(--mint); margin-top: 2px; }
+.settle-mask { position: absolute; inset: 0; z-index: 8; background: rgba(10,12,34,.6); display: grid; place-items: center; }
+.settle-spin { padding: 16px 26px; border-radius: 16px; background: rgba(20,22,58,.95); border: 1px solid rgba(255,215,106,.5); font-weight: 800; font-size: 14px; color: var(--gold); }
+
+/* 战绩回放行 */
+.replay-row { gap: 8px; }
+.rweather { font-style: normal; color: var(--muted); font-size: 11px; font-weight: 600; margin-left: 7px; }
 
 /* 悬浮按钮 */
 .fab-col { position: fixed; right: 22px; bottom: 22px; display: flex; flex-direction: column; gap: 12px; z-index: 40; }
