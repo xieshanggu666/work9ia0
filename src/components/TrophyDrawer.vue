@@ -2,13 +2,14 @@
 import { computed } from 'vue'
 import { useSkyStore } from '@/store/sky'
 const store = useSkyStore()
-const emit = defineEmits(['close'])
-// 战绩按「赛季 → 航线赛站顺序」排列，与实际参赛先后一致
+const emit = defineEmits(['close', 'replay'])
+// 战绩按「赛季 → 航线赛站顺序」排列；全部来自 race_records，不再依赖独立结算流水。
 const rows = computed(() => {
   const order = new Map(store.circuits.map((c, i) => [c.id, i]))
-  return (store.state?.log || [])
-    .map(l => ({ ...l, seq: order.get(l.circuit_id) ?? Number.MAX_SAFE_INTEGER }))
-    .sort((a, b) => (a.season - b.season) || (a.seq - b.seq) || a.id - b.id)
+  return (store.state?.races || [])
+    .filter(r => r.status === 'completed')
+    .map(r => ({ ...r, seq: order.get(r.circuit_id) ?? Number.MAX_SAFE_INTEGER }))
+    .sort((a, b) => (b.season - a.season) || (a.seq - b.seq) || b.id - a.id)
 })
 function stationName(seq) { return seq < 0 || seq >= store.circuits.length ? '' : `第 ${seq + 1} 站` }
 </script>
@@ -41,14 +42,15 @@ function stationName(seq) { return seq < 0 || seq >= store.circuits.length ? '' 
           </div>
         </section>
 
-        <!-- 战绩 -->
+        <!-- 战绩 / 历史回放 -->
         <section>
-          <div class="sec-h"><b>🏁 本赛季战绩</b></div>
+          <div class="sec-h"><b>🏁 战绩与回放</b><span class="d-sub">奖励已入账，回放不会重复结算</span></div>
           <div v-if="rows.length" class="race-rows">
-            <div v-for="l in rows" :key="l.id" class="race-row">
-              <span class="rname"><em class="rseq">{{ stationName(l.seq) }}</em>{{ store.circuits.find(c => c.id === l.circuit_id)?.name }}</span>
+            <div v-for="l in rows" :key="l.id" class="race-row replay-row">
+              <span class="rname"><em class="rseq">S{{ l.season }} · {{ stationName(l.seq) }}</em>{{ store.circuits.find(c => c.id === l.circuit_id)?.name || l.data?.circuit?.name }}</span>
               <span class="rmedal" :class="'m' + l.rank">{{ l.rank <= 3 ? ['🥇','🥈','🥉'][l.rank-1] : '🌊' }}</span>
               <span class="rpts mono">+{{ l.pts }} 分</span>
+              <button class="btn sm ghost" @click="emit('replay', l.id)">▶</button>
             </div>
           </div>
           <div v-else class="empty" style="color:var(--muted)">尚未参赛，去浮岛赛道开赛吧！</div>

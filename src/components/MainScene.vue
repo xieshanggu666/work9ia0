@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useSkyStore } from '@/store/sky'
 const store = useSkyStore()
-const emit = defineEmits(['race'])
+const emit = defineEmits(['start', 'resume', 'replay'])
 
 const wIco = { '晴': '🌤️', '风': '🌬️', '雨': '🌧️', '雾': '🌫️', '雷暴': '⛈️' }
 // 浮岛在航线图上的坐标（左下→右上一条上升的航线）
@@ -11,26 +11,44 @@ const spots = [
   { x: 660, y: 290 }, { x: 828, y: 225 }, { x: 955, y: 170 }
 ]
 const circuits = computed(() => store.circuits)
-// 赛季进度与航线解锁规则前后端一致：已完赛赛站数即进度，当前待赛站为第一个未完成站
 const done = computed(() => circuits.value.filter(c => c.finished).length)
 const total = computed(() => store.state?.seasonTotal || circuits.value.length || 6)
 const nextId = computed(() => circuits.value.find(c => !c.finished)?.id ?? null)
-function isOpen(c) { return !c.finished && c.id === nextId.value }
-
-const starting = ref(false)
-// 玩家游艇巡航位置：锁定在当前待赛站；全部完赛后停靠终点岛
-const playerPos = computed(() => {
-  const idx = Math.min(nextId.value == null ? total.value - 1 : circuits.value.findIndex(c => c.id === nextId.value), total.value - 1)
-  return spots[Math.max(0, idx)]
+const activeRace = computed(() => store.state?.activeRace || null)
+const raceByCircuit = computed(() => {
+  const map = new Map()
+  ;(store.state?.races || []).forEach(r => {
+    const old = map.get(r.circuit_id)
+    if (!old || r.season > old.season || r.id > old.id) map.set(r.circuit_id, r)
+  })
+  return map
 })
+function isOpen(c) { return !c.finished && c.id === nextId.value && !activeRace.value }
+function raceFor(c) { return raceByCircuit.value.get(c.id) }
 function fmt(c) { return '第 ' + c.rank + ' 名' }
-async function go(c) {
-  if (starting.value || !isOpen(c)) return
-  starting.value = true
-  const r = await store.race(c.id)
-  if (r.ok) { await store.refresh(); emit('race', r) }
-  else store.tip(r.msg || '当前还不能参加该站')
-  starting.value = false
+const playerPos = computed(() => {
+  const activeCid = activeRace.value?.circuit_id
+  let idx = circuits.value.findIndex(c => c.id === activeCid)
+  if (idx === -1) idx = nextId.value == null ? total.value - 1 : circuits.value.findIndex(c => c.id === nextId.value)
+  return spots[Math.max(0, Math.min(total.value - 1, idx))]
+})
+function go(c) {
+  const r = raceFor(c)
+  if (r?.status === 'completed') emit('replay', r.id)
+  else if (activeRace.value?.circuit_id === c.id) emit('resume')
+  else if (isOpen(c)) emit('start', c.id)
+}
+function btnText(c) {
+  const r = raceFor(c)
+  if (r?.status === 'completed') return '▶ 回放'
+  if (activeRace.value?.circuit_id === c.id) return '⏯ 续看'
+  if (isOpen(c)) return '🚀 开赛'
+  return '🔒 未解锁'
+}
+function btnEnabled(c) {
+  if (raceFor(c)?.status === 'completed') return true
+  if (activeRace.value) return activeRace.value.circuit_id === c.id
+  return isOpen(c)
 }
 </script>
 
@@ -57,7 +75,6 @@ async function go(c) {
           <ellipse cx="700" cy="585" rx="360" ry="40" fill="url(#cloudc)" />
           <ellipse cx="1000" cy="540" rx="280" ry="34" fill="url(#cloudc)" />
         </g>
-        <!-- 远景小云 -->
         <g opacity=".55">
           <circle cx="60" cy="130" r="26" fill="url(#cloudc)" /><circle cx="92" cy="138" r="20" fill="url(#cloudc)" />
           <circle cx="140" cy="90" r="18" fill="url(#cloudc)" />
@@ -70,33 +87,28 @@ async function go(c) {
         <!-- 6 座浮岛 -->
         <g v-for="(c, i) in circuits" :key="c.id">
           <g :transform="'translate(' + spots[i].x + ',' + spots[i].y + ')'">
-            <!-- 浮岛基座 -->
             <ellipse cy="16" rx="34" ry="11" fill="rgba(0,0,40,.25)" />
             <path d="M-34 0 Q-30 -26 0 -30 Q30 -26 34 0 L30 16 Q0 22 -30 16 Z" fill="url(#rock)" />
             <path d="M-24 -10 Q-12 -34 8 -36 Q26 -32 24 -14 L-26 -18 Z" fill="url(#island)" />
             <rect x="-6" y="-24" width="12" height="15" rx="2" fill="#fff5d0" stroke="#d9a441" stroke-width="1.5" />
             <text y="27" text-anchor="middle" font-size="15" font-weight="800" fill="#fff">{{ i + 1 }}</text>
 
-            <!-- 当前待赛站高亮脉冲环 -->
-            <circle v-if="isOpen(c)" cy="0" r="40" fill="none" stroke="#ffd76a" stroke-width="2.5" class="pulse-ring" />
-            <!-- 未解锁赛站锁标记 -->
-            <g v-if="!c.finished && !isOpen(c)" opacity=".9">
+            <circle v-if="isOpen(c) || activeRace?.circuit_id === c.id" cy="0" r="40" fill="none" stroke="#ffd76a" stroke-width="2.5" class="pulse-ring" />
+            <g v-if="!c.finished && !isOpen(c) && activeRace?.circuit_id !== c.id" opacity=".9">
               <circle cy="0" r="15" fill="rgba(12,14,42,.72)" stroke="rgba(159,193,255,.55)" stroke-width="1.5" />
               <text y="5" text-anchor="middle" font-size="14">🔒</text>
             </g>
 
-            <!-- 云端标签 -->
             <g :transform="'translate(0,-46)'">
               <rect x="-52" y="-13" width="104" height="26" rx="13" fill="rgba(20,22,58,.78)" stroke="rgba(255,215,106,.5)" />
               <text y="5" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffe9a8" dominant-baseline="middle">{{ c.name }}</text>
               <text :x="c.weather === '晴' ? 0 : -14" y="24" text-anchor="middle" font-size="12" fill="#9fc1ff">{{ wIco[c.weather] }} {{ c.weather }} · 难度{{ '★'.repeat(c.diff) }}</text>
-              <!-- 完赛标记 -->
               <text v-if="c.finished" y="40" text-anchor="middle" font-size="13" font-weight="800" fill="#6fe7d0">✔ {{ fmt(c) }}</text>
             </g>
           </g>
         </g>
 
-        <!-- 玩家游艇巡航 -->
+        <!-- 玩家飞艇 -->
         <g :transform="'translate(' + (playerPos.x - 56) + ',' + (playerPos.y - 110) + ')'">
           <ellipse cx="40" cy="66" rx="22" ry="6" fill="rgba(0,0,40,.35)" />
           <g class="drift">
@@ -109,20 +121,17 @@ async function go(c) {
         </g>
       </svg>
 
-      <!-- HTML 开赛按钮层：叠加在浮岛上方，仅当前待赛站可点击，其余赛站锁定 -->
-      <button v-for="(c, i) in circuits" :key="'b' + c.id" v-show="!c.finished"
-        class="start-btn" :class="{ locked: !isOpen(c) }"
-        :disabled="starting || !isOpen(c)"
-        :title="isOpen(c) ? '' : `请先完成前面的第 ${i} 站`"
+      <button v-for="(c, i) in circuits" :key="'b' + c.id"
+        class="start-btn" :class="{ locked: !btnEnabled(c), replay: raceFor(c)?.status === 'completed', live: activeRace?.circuit_id === c.id }"
+        :disabled="!btnEnabled(c)"
         :style="{ left: (spots[i].x / 1060 * 100) + '%', top: ((spots[i].y - 8) / 600 * 100) + '%' }"
-        @click="go(c)">{{ isOpen(c) ? '🚀 开赛' : '🔒 未解锁' }}</button>
+        @click="go(c)">{{ btnText(c) }}</button>
     </div>
 
-    <!-- 赛季进度浮条 -->
     <div class="progress-hud">
       <div class="ph-label">赛季航线进度</div>
       <div class="ph-bar"><i :style="{ width: (done / total * 100) + '%' }"></i></div>
-      <div class="ph-nums mono">{{ done }} / {{ total }} 站完赛</div>
+      <div class="ph-nums mono">{{ activeRace ? '比赛进行中，可中断续看' : `${done} / ${total} 站完赛` }}</div>
     </div>
   </div>
 </template>

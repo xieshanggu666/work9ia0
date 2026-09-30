@@ -81,6 +81,28 @@ CREATE TABLE IF NOT EXISTS race_log (
   note TEXT,
   ts TEXT
 );
+-- 唯一比赛记录：动画、实时排名、断点续看、历史回放和结算都以它为准。
+-- running -> completed 的一次性迁移就是结算闸门，避免重复发奖。
+CREATE TABLE IF NOT EXISTS race_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  circuit_id INTEGER NOT NULL,
+  season INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'running', -- running | completed
+  started_at INTEGER NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  settled_at INTEGER,
+  viewed INTEGER NOT NULL DEFAULT 0,
+  rank INTEGER,
+  pts INTEGER,
+  money REAL,
+  wear INTEGER,
+  parts_dur INTEGER,
+  rep_gain INTEGER,
+  data TEXT NOT NULL,
+  UNIQUE(circuit_id, season)
+);
+CREATE INDEX IF NOT EXISTS idx_race_records_status ON race_records(status);
+CREATE INDEX IF NOT EXISTS idx_race_records_circuit ON race_records(circuit_id, season);
 `)
 
 export function run(sql, ...p) { return db.prepare(sql).run(...p) }
